@@ -212,7 +212,7 @@ on APP.init
    Lib.LoadAll -- every LIB_ card becomes a library stack
    -- Claude Code's bridge (tools/lc.sh): IDE only, never in a standalone.
 --   if the environment is "development" and there is a card "LIB_DEVSERVER" then DevServer.Start
-if the environment is "development" then MCP.Attach   -- LIB_MCP 11 11 2026
+MCP.Attach   -- LIB_MCP 11 11 2026 738pm
 end APP.init
 
 on init.graphic.objects.for.geometry
