@@ -1,0 +1,58 @@
+{
+  "type": "stack", "name": "QuitStack", "role": "substack", "id": 1006,
+  "rect": [415,116,1055,812],
+  "size": [640,696],
+  "file": "V:/Vibecode3D/3DSCENE_v111092026d_LIB_LLM_548AM.livecode",
+  "props": {"decorations": "", "liveResizing": false, "visible": true},
+  "effective": {"textFont": "Segoe UI", "textSize": 12, "textStyle": "plain", "foregroundColor": [0,0,0], "backgroundColor": [0,0,0]},
+  "script": {
+    "file": "scripts/QuitStack__stack.livecodescript", "lines": 9,
+    "handlers": [
+      {"line": 2, "type": "on", "name": "preopenStack"},
+      {"line": 5, "type": "on", "name": "escapeKey"}
+    ]
+  },
+  "cards": [
+    {
+      "type": "card", "name": "", "id": 1002, "number": 1,
+      "controls": [
+        {
+          "type": "group", "name": "QuitGroup", "id": 1006, "rect": [162,155,478,542],
+          "props": {"lockLoc": true},
+          "controls": [
+            {
+              "type": "button", "name": "NoButton", "id": 1003, "rect": [225,256,430,326],
+              "props": {"borderWidth": 0, "colorOverlay": {"blendmode": "normal", "color": "0,255,0", "opacity": 46}, "label": "NO", "opaque": false, "outerGlow": {"blendmode": "normal", "color": "0,255,0", "filter": "box3pass", "opacity": 255, "range": 255, "size": 15, "spread": 5}, "showBorder": false, "showFocusBorder": false, "style": "rectangle", "textFont": "Ebrima", "textSize": 36, "textStyle": "bold", "threeD": false, "traversalOn": false},
+              "script": {
+                "file": "scripts/QuitStack__button_1003_NoButton.livecodescript", "lines": 24,
+                "handlers": [
+                  {"line": 2, "type": "on", "name": "mouseEnter"},
+                  {"line": 8, "type": "on", "name": "mouseLeave"},
+                  {"line": 14, "type": "on", "name": "mouseDown"},
+                  {"line": 19, "type": "on", "name": "mouseUP"}
+                ]
+              }
+            },
+            {
+              "type": "button", "name": "YesButton", "id": 1004, "rect": [223,334,428,404],
+              "props": {"borderWidth": 0, "colorOverlay": {"blendmode": "normal", "color": "0,255,0", "opacity": 46}, "label": "YES", "opaque": false, "outerGlow": {"blendmode": "normal", "color": "0,255,0", "filter": "box3pass", "opacity": 255, "range": 255, "size": 25, "spread": 25}, "showBorder": false, "showFocusBorder": false, "style": "rectangle", "textFont": "Ebrima", "textSize": 36, "textStyle": "bold", "threeD": false, "traversalOn": false},
+              "script": {
+                "file": "scripts/QuitStack__button_1004_YesButton.livecodescript", "lines": 23,
+                "handlers": [
+                  {"line": 2, "type": "on", "name": "mouseEnter"},
+                  {"line": 8, "type": "on", "name": "mouseLeave"},
+                  {"line": 14, "type": "on", "name": "mouseDown"},
+                  {"line": 19, "type": "on", "name": "mouseUP"}
+                ]
+              }
+            },
+            {
+              "type": "button", "name": "NoButton", "id": 1005, "rect": [166,159,474,229],
+              "props": {"autoHilite": false, "blendLevel": 13, "borderWidth": 0, "colorOverlay": {"blendmode": "normal", "color": "0,255,0", "opacity": 46}, "foreColor": [0,255,64], "label": "REALLY QUIT?", "opaque": false, "outerGlow": {"blendmode": "normal", "color": "0,255,0", "filter": "box3pass", "opacity": 255, "range": 255, "size": 25, "spread": 25}, "sharedHilite": false, "showBorder": false, "showFocusBorder": false, "style": "rectangle", "textFont": "Ebrima", "textSize": 36, "textStyle": "bold", "threeD": false, "traversalOn": false}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

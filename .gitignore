@@ -1,0 +1,5 @@
+*:Zone.Identifier
+.lc_devtoken
+# older copies of LIB_XTJSON's scripts; the current ones are in ~/projects/LIB_XTJSON
+LIB_XTJSON.livecodescript
+livecode/LCHarvest2.livecodescript

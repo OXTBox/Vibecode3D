@@ -1,0 +1,15 @@
+
+-- // When the card opens, enter "browse" mode, run CardIdle & Theme Song Handlers, create loading graphic
+on openCard
+   TitleCardOpened
+   ResetDefaults
+end openCard
+
+-- // while doing developer work get test openCard message without changing cards
+on resetCard
+   openCard
+end resetCard
+
+
+
+

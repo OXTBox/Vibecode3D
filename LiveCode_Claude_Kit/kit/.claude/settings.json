@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tools/lc.sh ping)",
+      "Bash(tools/lc.sh list)",
+      "Bash(tools/lc.sh pull:*)",
+      "Bash(tools/lc.sh pull-all)",
+      "Bash(tools/lc.sh report:*)",
+      "Bash(tools/lc.sh push:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

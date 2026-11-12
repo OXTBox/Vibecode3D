@@ -1,0 +1,14 @@
+{
+  "type": "stack", "name": "Untitled 2", "role": "substack", "id": 1002,
+  "rect": [115,130,515,530],
+  "size": [400,400],
+  "file": "V:/Vibecode3D/3DSCENE_v111092026d_LIB_LLM_548AM.livecode",
+  "props": {"visible": true},
+  "effective": {"textFont": "Segoe UI", "textSize": 12, "textStyle": "plain", "foregroundColor": [0,0,0], "backgroundColor": [0,0,0]},
+  "cards": [
+    {
+      "type": "card", "name": "", "id": 1002, "number": 1,
+      "controls": []
+    }
+  ]
+}
