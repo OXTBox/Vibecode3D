@@ -4,3 +4,6 @@
 LIB_XTJSON.livecodescript
 livecode/LCHarvest2.livecodescript
 standalone/
+
+# a link back to this folder (made by a tool), not content
+/Vibecode3D
