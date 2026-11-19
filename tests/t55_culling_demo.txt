@@ -1,7 +1,7 @@
 -- Engine 1 (pure xTalk Vibecode3D): the hiding demo card (Vibecode3D/examples/Vibecode3D_Play_CullingDemo) on the real engine script:
 -- it compiles, starts in mode 2, keys 0 1 2 switch gCullMode, and each mode draws fewer lines than the one before.
 -- Engine and demo are read from the owner's Vibecode3D folder, or from $VIBE_ENGINE_SRC and $VIBE_DEMO (a copy not put in yet).
-local tSrc, tPath, tDemo, tC, m, i, tLines, tHid, tXf
+local tSrc, tPath, tDemo, tC, m, i, tLines, tHid, tXf, tWrong, tSeen, tWas, tSpans, tLineO, tKey, tNow, tWrongList
 global gCullMode, gSceneObjects
 put "/home/igame3d/projects/Vibecode3D/livecode/VIBECODE3D_LIB_MCP_11_11_2026_647PM.livecodescript" into tPath
 if $VIBE_ENGINE_SRC is not empty then put $VIBE_ENGINE_SRC into tPath
@@ -14,7 +14,7 @@ end if
 create stack "EngHost"
 set the rect of stack "EngHost" to 100,100,1000,700
 -- T.Loop: the HUD is only drawn while the game loop runs
-set the script of stack "EngHost" to tSrc & return & "on T.Loop" & return & "put true into sLoopActive" & return & "end T.Loop" & return
+set the script of stack "EngHost" to tSrc & return & "on T.Loop" & return & "put true into sLoopActive" & return & "end T.Loop" & return & "function T.Hid pKey" & return & "return sCullHidden[pKey] is true" & return & "end T.Hid" & return
 put ck("engine compiles", the result, empty) & return after tLog
 start using stack "EngHost"
 set the defaultStack to "EngHost"
@@ -53,6 +53,40 @@ end repeat
 put ck("mode 1 draws fewer lines than mode 0", tLines[1] < tLines[0], true) & return after tLog
 put ck("mode 2 draws fewer lines than mode 1", tLines[2] < tLines[1], true) & return after tLog
 put ck("only mode 2 hides whole objects", (tHid[0] + tHid[1]) & (tHid[2] > 0), "0true") & return after tLog
+-- 19 Nov: a whole turn of the camera in mode 2. Nothing may be hidden that could be seen (every corner of a
+-- hidden object is checked here with its own sight line, not with the engine's tables), and a thing passing
+-- behind the tower goes once and comes back once (it used to come back at the tower's corner).
+dispatch "CullDemo.TestKeys" to tC with "50"
+dispatch "Game.OnUpdate" to tC
+dispatch "CullDemo.TestKeys" to tC with "0"
+put 0 into tWrong
+put 0 into tSeen
+put empty into tWas
+put empty into tSpans
+repeat with i = 1 to 786
+   game.update
+   game.render
+   repeat for each line tLineO in gSceneObjects
+      put word 2 of tLineO into tKey
+      put T.Hid(tKey) into tNow
+      if tNow and i mod 8 is 0 then
+         add 1 to tSeen
+         if SeenCorners(tKey) > 0 then
+            add 1 to tWrong
+            put space & tKey & "@" & i after tWrongList
+         end if
+      end if
+      if tNow and tWas[tKey] is not true then add 1 to tSpans[tKey]
+      put tNow into tWas[tKey]
+   end repeat
+end repeat
+put ck("a whole turn: no hidden object has a corner in plain sight (" & tSeen && "hidden objects checked)" & tWrongList, tWrong & (tSeen > 300), "0true") & return after tLog
+-- four things of the ring that only the tower hides in this turn (lines 4 5 11 12: a cone, a column, a box, a cone)
+put empty into tXf
+repeat for each item i in "4,5,11,12"
+   put tSpans[word 2 of line i of gSceneObjects] & space after tXf
+end repeat
+put ck("four things of the ring: each is hidden once in a turn, in one piece", tXf, "1 1 1 1 ") & return after tLog
 dispatch "CullDemo.TestKeys" to tC with "32"
 dispatch "Game.OnUpdate" to tC
 put word 4 of value("CullDemo.State()", tC) into tXf
@@ -61,3 +95,90 @@ put ck("Space stops the camera", word 4 of value("CullDemo.State()", tC), tXf) &
 dispatch "Game.OnStop" to tC
 put ck("leaving the demo turns hiding off", gCullMode, 0) & return after tLog
 return tLog
+--HANDLERS--
+-- How many corners of object pKey can be seen: no face of any other closed object crosses the sight line
+-- from the camera (0,0,0 in camera space) to the corner. Uses the meshes' own face lists.
+function SeenCorners pKey
+   global gSceneObjects, gMeshCache
+   local tLineO, tGeo, tMesh, tXf, tSeen, v, x, y, z, vx, vy, vz, tLen, tCovered, tH, tHX, tHM, tCZ2, tProj
+   local tFace, tN, i, tQX, tQY, tQZ, w, ux, uy, uz, wx, wy, wz, nx, ny, nz, tDen, t, hx, hy, hz, j, tIn, cx, cy, cz, tR
+   set the itemDel to comma
+   repeat for each line tLineO in gSceneObjects
+      if word 2 of tLineO is pKey then put word 1 of tLineO into tGeo
+   end repeat
+   put gMeshCache[tGeo] into tMesh
+   put Xform.Object(pKey) into tXf
+   put 0 into tSeen
+   repeat with v = 1 to tMesh["count"]
+      put tMesh["vx"][v] into x
+      put tMesh["vy"][v] into y
+      put tMesh["vz"][v] into z
+      put (item 1 of tXf)*x + (item 2 of tXf)*y + (item 3 of tXf)*z + item 10 of tXf into vx
+      put (item 4 of tXf)*x + (item 5 of tXf)*y + (item 6 of tXf)*z + item 11 of tXf into vy
+      put (item 7 of tXf)*x + (item 8 of tXf)*y + (item 9 of tXf)*z + item 12 of tXf into vz
+      put sqrt(vx*vx + vy*vy + vz*vz) into tLen
+      put false into tCovered
+      repeat for each line tH in gSceneObjects
+         if word 2 of tH is pKey then next repeat
+         put gMeshCache[word 1 of tH] into tHM
+         if tHM["closed"] is not true then next repeat
+         put Xform.Object(word 2 of tH) into tHX
+         -- the sight line passes the hider's ball?
+         put item 10 of tHX into cx
+         put item 11 of tHX into cy
+         put item 12 of tHX into cz
+         put (cx*vx + cy*vy + cz*vz) / tLen into tProj
+         put tHM["radius"] into tR
+         if cx*cx + cy*cy + cz*cz - tProj*tProj > tR*tR then next repeat
+         repeat for each line tFace in tHM["faces"]
+            put the number of words of tFace into tN
+            repeat with i = 1 to tN
+               put word i of tFace into w
+               put tHM["vx"][w] into x
+               put tHM["vy"][w] into y
+               put tHM["vz"][w] into z
+               put (item 1 of tHX)*x + (item 2 of tHX)*y + (item 3 of tHX)*z + cx into tQX[i]
+               put (item 4 of tHX)*x + (item 5 of tHX)*y + (item 6 of tHX)*z + cy into tQY[i]
+               put (item 7 of tHX)*x + (item 8 of tHX)*y + (item 9 of tHX)*z + cz into tQZ[i]
+            end repeat
+            put tQX[2]-tQX[1] into ux
+            put tQY[2]-tQY[1] into uy
+            put tQZ[2]-tQZ[1] into uz
+            put tQX[3]-tQX[1] into wx
+            put tQY[3]-tQY[1] into wy
+            put tQZ[3]-tQZ[1] into wz
+            put uy*wz - uz*wy into nx
+            put uz*wx - ux*wz into ny
+            put ux*wy - uy*wx into nz
+            put nx*vx + ny*vy + nz*vz into tDen
+            if abs(tDen) < 0.000001 then next repeat
+            put (nx*tQX[1] + ny*tQY[1] + nz*tQZ[1]) / tDen into t
+            if t <= 0 or t > 1.0001 then next repeat
+            put t*vx into hx
+            put t*vy into hy
+            put t*vz into hz
+            put true into tIn
+            repeat with i = 1 to tN
+               put (i mod tN) + 1 into j
+               put tQX[j]-tQX[i] into ux
+               put tQY[j]-tQY[i] into uy
+               put tQZ[j]-tQZ[i] into uz
+               put hx-tQX[i] into wx
+               put hy-tQY[i] into wy
+               put hz-tQZ[i] into wz
+               if (uy*wz - uz*wy)*nx + (uz*wx - ux*wz)*ny + (ux*wy - uy*wx)*nz < -0.01 * (nx*nx + ny*ny + nz*nz)^0.5 then
+                  put false into tIn
+                  exit repeat
+               end if
+            end repeat
+            if tIn then
+               put true into tCovered
+               exit repeat
+            end if
+         end repeat
+         if tCovered then exit repeat
+      end repeat
+      if not tCovered then add 1 to tSeen
+   end repeat
+   return tSeen
+end SeenCorners

@@ -1,4 +1,4 @@
--- Engine 1 (pure xTalk Vibecode3D): hiding with gCullMode. 1 = back faces of closed shapes, 2 = and whole objects behind one face of a nearer solid. 0 (the default) draws as before.
+-- Engine 1 (pure xTalk Vibecode3D): hiding with gCullMode. 1 = back faces of closed shapes, 2 = and whole objects behind a nearer solid (corner by corner). 0 (the default) draws as before.
 -- The engine script is read from the owner's Vibecode3D folder, or from $VIBE_ENGINE_SRC (to test a copy that is not put in yet).
 local tSrc, tPath, tKey, tBig, tSmall, tM, tV, i, tName, tA, tB
 global gCullMode, gMeshCache, gCameraYaw, gCameraPitch
@@ -186,6 +186,20 @@ put ck("big box turned, small one still behind its front face: hidden", NHidden(
 SetObjectRotation tBig, 0, 0, 0
 gCameraTurn 0.2
 put ck("camera turned a little, small box still behind: hidden", NHidden(2), 1) & return after tLog
+-- corner by corner (19 Nov): behind a convex solid the corners may be behind different faces of it
+SetObjectRotation tBig, 0, 0.7854, 0
+put ck("big box turned corner-on, small box behind that corner (two faces of the big one): hidden", NHidden(2), 1) & return after tLog
+SetObjectPosition tSmall, 330, 0, 700
+put ck("small box half out past the corner-on box's outline: drawn", NHidden(2), 0) & return after tLog
+SetObjectRotation tBig, 0, 0, 0
+Fresh
+Mesh.Define "T.Stick", MeshBox(10,200,10)
+put Entity.Spawn("T.Stick", 230, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Big", 0, 0, 400, "white") into tBig
+put ck("a long thin stick near the big box's edge (its ball pokes out, its corners do not): hidden", NHidden(2), 1) & return after tLog
+SetObjectPosition tSmall, 230, 220, 700
+put ck("the stick lowered so its end shows under the big box: drawn", NHidden(2), 0) & return after tLog
+put ck("a box is one convex solid, the L-shaped solid is not", gMeshCache["T.Big"]["convex"] && gMeshCache["T.Ell"]["convex"], "true false") & return after tLog
 -- an open sheet hides nothing, but can be hidden
 Fresh
 Mesh.Define "T.Wall", Mesh.Transform(gMeshCache["T.Face"], 0, 0, 0, 0, 0, 0, 4)
