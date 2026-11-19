@@ -29,7 +29,8 @@ put ck("demo compiles", the result, empty) & return after tLog
 put the long id of card 1 of stack "EngHost" into tC
 dispatch "CullDemo.TestKeys" to tC with "0"
 dispatch "Game.OnStart" to tC
-put ck("demo starts in mode 3 (hidden lines)", gCullMode, 3) & return after tLog
+put ck("demo starts with the Settings choice (off by default)", gCullMode, 0) & return after tLog
+put 3 into gCullMode
 put ck("36 objects: floor, tower, 10 round it, wall, 5 behind it, 18 rocks", the number of lines of gSceneObjects, 36) & return after tLog
 Render.BeginFrame
 put Xform.Object(word 2 of line 2 of gSceneObjects) into tXf

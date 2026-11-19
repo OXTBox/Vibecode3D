@@ -7,6 +7,7 @@
 ##           1: back faces hidden (each solid loses its own far side)
 ##           2: and whole objects hidden when they are wholly behind a solid
 ##           3: and hidden lines: the part of any line behind a solid is cut away
+##           (it starts with the hiding chosen in Settings: off unless the player chose)
 ##           Space: stop / start the camera    Left, Right: turn it by hand    Escape: pause
 ## RULES     nothing to win. Watch the top line: lines drawn this frame, objects hidden,
 ##           and the time the line work took. The floor grid is an open sheet: it is never
@@ -79,13 +80,13 @@ on Game.OnStart
    put 0 into sMSSum
    put 0 into sMSCount
    put "-" into sMSShown
-   put 3 into gCullMode
+   -- no mode forced: it starts with the player's choice in Settings (off unless chosen); keys 0-3 switch
    CullDemo.Camera
    CullDemo.ShowHUD
 end Game.OnStart
 
 on Game.OnStop
-   put 0 into gCullMode
+   Cull.Reset -- back to the player's choice in Settings
 end Game.OnStop
 
 -- the camera on its circle, looking at the middle (the engine's camera sits at minus CAM)
