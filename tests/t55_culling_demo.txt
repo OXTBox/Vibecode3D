@@ -14,7 +14,7 @@ end if
 create stack "EngHost"
 set the rect of stack "EngHost" to 100,100,1000,700
 -- T.Loop: the HUD is only drawn while the game loop runs
-set the script of stack "EngHost" to tSrc & return & "on T.Loop" & return & "put true into sLoopActive" & return & "end T.Loop" & return & "function T.Hid pKey" & return & "return sCullHidden[pKey] is true" & return & "end T.Hid" & return
+set the script of stack "EngHost" to tSrc & return & "on T.Loop" & return & "put true into sLoopActive" & return & "end T.Loop" & return & "function T.Hid pKey" & return & "return sCullHidden[pKey] is true" & return & "end T.Hid" & return & "function T.Proj" & return & "return sProjK && sProjOffX && sProjOffY" & return & "end T.Proj" & return
 put ck("engine compiles", the result, empty) & return after tLog
 start using stack "EngHost"
 set the defaultStack to "EngHost"
@@ -29,12 +29,12 @@ put ck("demo compiles", the result, empty) & return after tLog
 put the long id of card 1 of stack "EngHost" into tC
 dispatch "CullDemo.TestKeys" to tC with "0"
 dispatch "Game.OnStart" to tC
-put ck("demo starts in mode 2", gCullMode, 2) & return after tLog
+put ck("demo starts in mode 3 (hidden lines)", gCullMode, 3) & return after tLog
 put ck("36 objects: floor, tower, 10 round it, wall, 5 behind it, 18 rocks", the number of lines of gSceneObjects, 36) & return after tLog
 Render.BeginFrame
 put Xform.Object(word 2 of line 2 of gSceneObjects) into tXf
 put ck("the camera looks at the tower (in the middle, ahead)", abs(item 10 of tXf) < 1 and item 12 of tXf > 500, true) & return after tLog
-repeat for each item m in "0,1,2"
+repeat for each item m in "0,1,2,3"
    dispatch "CullDemo.TestKeys" to tC with (48 + m)
    dispatch "Game.OnUpdate" to tC
    dispatch "CullDemo.TestKeys" to tC with "0"
@@ -52,7 +52,33 @@ repeat for each item m in "0,1,2"
 end repeat
 put ck("mode 1 draws fewer lines than mode 0", tLines[1] < tLines[0], true) & return after tLog
 put ck("mode 2 draws fewer lines than mode 1", tLines[2] < tLines[1], true) & return after tLog
-put ck("only mode 2 hides whole objects", (tHid[0] + tHid[1]) & (tHid[2] > 0), "0true") & return after tLog
+put ck("mode 3 draws fewer lines than mode 2", tLines[3] < tLines[2], true) & return after tLog
+put ck("only modes 2 and 3 hide whole objects", (tHid[0] + tHid[1]) & (tHid[2] > 0) & (tHid[3] > 0), "0truetrue") & return after tLog
+-- mode 3 against true sight lines: at 7 camera places round the turn, the middle of every edge of every object
+-- is either clearly seen or clearly hidden (worked out here from the meshes' own faces); the engine's lines
+-- must agree: a seen middle lies on a drawn line, a hidden one does not.
+put 0 into tWrong
+put 0 into tSeen
+put 0 into tGoneOK
+put 0 into tShownOK
+repeat with i = 1 to 7
+   repeat 112
+      game.update
+   end repeat
+   repeat for each line tLineO in gSceneObjects
+      put LineCheck(word 1 of tLineO, word 2 of tLineO) into tXf
+      add word 1 of tXf to tShownOK
+      add word 2 of tXf to tGoneOK
+      add word 3 of tXf to tWrong
+      add word 4 of tXf to tSeen
+   end repeat
+end repeat
+put "INFO hidden lines, 7 camera places: edge middles seen and drawn" && tShownOK & ", hidden and not drawn" && tGoneOK & ", seen but NOT drawn" && tWrong & ", hidden but DRAWN" && tSeen & return after tLog
+put ck("hidden lines: no more than 1 in 100 seen edges is missing", tWrong * 100 <= tShownOK + tWrong, true) & return after tLog
+put ck("hidden lines: no more than 1 in 100 hidden edges still shows", tSeen * 100 <= tGoneOK + tSeen, true) & return after tLog
+put ck("hidden lines: plenty of both were checked", (tShownOK > 1000) && (tGoneOK > 300), "true true") & return after tLog
+put 0 into tWrong
+put 0 into tSeen
 -- 19 Nov: a whole turn of the camera in mode 2. Nothing may be hidden that could be seen (every corner of a
 -- hidden object is checked here with its own sight line, not with the engine's tables), and a thing passing
 -- behind the tower goes once and comes back once (it used to come back at the tower's corner).
@@ -96,6 +122,198 @@ dispatch "Game.OnStop" to tC
 put ck("leaving the demo turns hiding off", gCullMode, 0) & return after tLog
 return tLog
 --HANDLERS--
+-- One object in mode 3 against true sight lines. Returns four counts of its edges' middles:
+-- "seen and drawn", "hidden and not drawn", "seen but not drawn", "hidden but drawn".
+function LineCheck pGeo, pKey
+   global gCullMode, gMeshCache, gNearPlane, gViewLeft, gViewRight, gViewTop, gViewBottom
+   local tMesh, tXf, tBuf, tSegs, tL, tPrev, v, x, y, z, tCX, tCY, tCZ, e, a, b, tK, tOX, tOY
+   local tSegs1, wa, wb, w, px, py, pz, sx, sy, tT, tOn, tS, tOut1, tOut2, tOut3, tOut4, ax, ay, dx, dy, u, tLen2, tEAX, tEAY, tENX, tENY, tSkip, tMixed, tOff, tT2
+   set the itemDel to comma
+   put Segs(pGeo, pKey, 1) into tSegs1
+   put Segs(pGeo, pKey, 3) into tSegs
+   put gMeshCache[pGeo] into tMesh
+   put Xform.Object(pKey) into tXf
+   put empty into tSkip
+   if tMesh["convex"] is true then put pKey into tSkip
+   -- the engine's projection: screen = x * K / z + offset
+   put word 1 of T.Proj() into tK
+   put word 2 of T.Proj() into tOX
+   put word 3 of T.Proj() into tOY
+   repeat with v = 1 to tMesh["count"]
+      put tMesh["vx"][v] into x
+      put tMesh["vy"][v] into y
+      put tMesh["vz"][v] into z
+      put (item 1 of tXf)*x + (item 2 of tXf)*y + (item 3 of tXf)*z + item 10 of tXf into tCX[v]
+      put (item 4 of tXf)*x + (item 5 of tXf)*y + (item 6 of tXf)*z + item 11 of tXf into tCY[v]
+      put (item 7 of tXf)*x + (item 8 of tXf)*y + (item 9 of tXf)*z + item 12 of tXf into tCZ[v]
+   end repeat
+   put 0 into tOut1
+   put 0 into tOut2
+   put 0 into tOut3
+   put 0 into tOut4
+   repeat with e = 1 to tMesh["edgeCount"]
+      put tMesh["ea"][e] into a
+      put tMesh["eb"][e] into b
+      if tCZ[a] < gNearPlane + 1 or tCZ[b] < gNearPlane + 1 then next repeat
+      -- the point that lies in the middle of the edge ON SCREEN
+      put 1 / tCZ[a] into wa
+      put 1 / tCZ[b] into wb
+      put (wa + wb) / 2 into w
+      put (tCX[a]*wa + tCX[b]*wb) / 2 / w into px
+      put (tCY[a]*wa + tCY[b]*wb) / 2 / w into py
+      put 1 / w into pz
+      put px * tK / pz + tOX into sx
+      put py * tK / pz + tOY into sy
+      if sx < gViewLeft + 3 or sx > gViewRight - 3 or sy < gViewTop + 3 or sy > gViewBottom - 3 then next repeat
+      -- the edge's own line on screen: a point on it and its direction (length 1)
+      put tCX[a] * tK * wa + tOX into tEAX
+      put tCY[a] * tK * wa + tOY into tEAY
+      put tCX[b] * tK * wb + tOX - tEAX into tENX
+      put tCY[b] * tK * wb + tOY - tEAY into tENY
+      put sqrt(tENX*tENX + tENY*tENY) into u
+      if u < 3 then next repeat -- too short on screen to tell
+      put tENX / u into tENX
+      put tENY / u into tENY
+      -- only edges that mode 1 draws (the others are on the solid's own far side)
+      if not OnSeg(sx, sy, tSegs1, tEAX, tEAY, tENX, tENY) then next repeat
+      -- clearly hidden or clearly seen: the middle and four points 2.5 pixels round it must agree
+      -- (a convex solid's own far side is not asked: mode 1 deals with that, and its near and far edges can lie on one screen line)
+      put NearestHit(px, py, pz, tSkip) into tT
+      if tT >= 0.99 and tT < 0.998 then next repeat -- too close to call
+      put 2.5 * pz / tK into u
+      put false into tMixed
+      repeat for each item tOff in "1 0,-1 0,0 1,0 -1"
+         put NearestHit(px + u * word 1 of tOff, py + u * word 2 of tOff, pz, tSkip) into tT2
+         if (tT2 < 0.99) is not (tT < 0.99) or (tT2 >= 0.99 and tT2 < 0.998) then
+            put true into tMixed
+            exit repeat
+         end if
+      end repeat
+      if tMixed then next repeat
+      -- is the middle on a drawn piece of this edge?
+      put OnSeg(sx, sy, tSegs, tEAX, tEAY, tENX, tENY) into tOn
+      if tT >= 0.998 then
+         if tOn then
+            add 1 to tOut1
+         else
+            add 1 to tOut3
+         end if
+      else
+         if tOn then
+            add 1 to tOut4
+         else
+            add 1 to tOut2
+         end if
+      end if
+   end repeat
+   return tOut1 && tOut2 && tOut3 && tOut4
+end LineCheck
+-- one object's lines with gCullMode = pMode, one "x1,y1,x2,y2" per line
+function Segs pGeo, pKey, pMode
+   global gCullMode
+   local tBuf, tL, tPrev, tSegs
+   put pMode into gCullMode
+   Render.BeginFrame
+   RenderMeshInto pGeo, pKey, "g", tBuf, true
+   repeat for each line tL in tBuf["g"]
+      if tL is empty then
+         put empty into tPrev
+      else if tPrev is empty then
+         put tL into tPrev
+      else
+         put tPrev & comma & tL & return after tSegs
+         put empty into tPrev
+      end if
+   end repeat
+   return tSegs
+end Segs
+-- true when screen point sx,sy lies (within 1.5 pixels) on a drawn line that is a piece of the edge whose
+-- own screen line goes through pAX,pAY in direction pNX,pNY (length 1)
+function OnSeg sx, sy, pSegs, pAX, pAY, pNX, pNY
+   local tS, ax, ay, dx, dy, tLen2, u
+   set the itemDel to comma
+   repeat for each line tS in pSegs
+      put item 1 of tS into ax
+      put item 2 of tS into ay
+      put item 3 of tS - ax into dx
+      put item 4 of tS - ay into dy
+      put dx*dx + dy*dy into tLen2
+      put 0 into u
+      if tLen2 > 0 then put ((sx-ax)*dx + (sy-ay)*dy) / tLen2 into u
+      if u < 0 then put 0 into u
+      if u > 1 then put 1 into u
+      if (sx - ax - u*dx)^2 + (sy - ay - u*dy)^2 <= 2.25 then
+         if abs((ax - pAX)*pNY - (ay - pAY)*pNX) <= 1.5 and abs((ax + dx - pAX)*pNY - (ay + dy - pAY)*pNX) <= 1.5 then return true
+      end if
+   end repeat
+   return false
+end OnSeg
+-- How far along the sight line from the camera to the point (camera space) the first face of any closed
+-- object (but pSkip) is met: under 1 = something is in front of the point; 9 = nothing.
+function NearestHit vx, vy, vz, pSkip
+   global gSceneObjects, gMeshCache
+   local tLen, tBest, tH, tHM, tHX, cx, cy, cz, tProj, tR, tFace, tN, i, w, x, y, z, tQX, tQY, tQZ
+   local ux, uy, uz, wx, wy, wz, nx, ny, nz, tDen, t, hx, hy, hz, j, tIn
+   set the itemDel to comma
+   put sqrt(vx*vx + vy*vy + vz*vz) into tLen
+   put 9 into tBest
+   repeat for each line tH in gSceneObjects
+      if word 2 of tH is pSkip then next repeat
+      put gMeshCache[word 1 of tH] into tHM
+      if tHM["closed"] is not true then next repeat
+      put Xform.Object(word 2 of tH) into tHX
+      put item 10 of tHX into cx
+      put item 11 of tHX into cy
+      put item 12 of tHX into cz
+      put (cx*vx + cy*vy + cz*vz) / tLen into tProj
+      put tHM["radius"] into tR
+      if cx*cx + cy*cy + cz*cz - tProj*tProj > tR*tR then next repeat
+      repeat for each line tFace in tHM["faces"]
+         put the number of words of tFace into tN
+         repeat with i = 1 to tN
+            put word i of tFace into w
+            put tHM["vx"][w] into x
+            put tHM["vy"][w] into y
+            put tHM["vz"][w] into z
+            put (item 1 of tHX)*x + (item 2 of tHX)*y + (item 3 of tHX)*z + cx into tQX[i]
+            put (item 4 of tHX)*x + (item 5 of tHX)*y + (item 6 of tHX)*z + cy into tQY[i]
+            put (item 7 of tHX)*x + (item 8 of tHX)*y + (item 9 of tHX)*z + cz into tQZ[i]
+         end repeat
+         put tQX[2]-tQX[1] into ux
+         put tQY[2]-tQY[1] into uy
+         put tQZ[2]-tQZ[1] into uz
+         put tQX[3]-tQX[1] into wx
+         put tQY[3]-tQY[1] into wy
+         put tQZ[3]-tQZ[1] into wz
+         put uy*wz - uz*wy into nx
+         put uz*wx - ux*wz into ny
+         put ux*wy - uy*wx into nz
+         put nx*vx + ny*vy + nz*vz into tDen
+         if abs(tDen) < 0.000001 then next repeat
+         put (nx*tQX[1] + ny*tQY[1] + nz*tQZ[1]) / tDen into t
+         if t <= 0 or t >= tBest then next repeat
+         put t*vx into hx
+         put t*vy into hy
+         put t*vz into hz
+         put true into tIn
+         repeat with i = 1 to tN
+            put (i mod tN) + 1 into j
+            put tQX[j]-tQX[i] into ux
+            put tQY[j]-tQY[i] into uy
+            put tQZ[j]-tQZ[i] into uz
+            put hx-tQX[i] into wx
+            put hy-tQY[i] into wy
+            put hz-tQZ[i] into wz
+            if (uy*wz - uz*wy)*nx + (uz*wx - ux*wz)*ny + (ux*wy - uy*wx)*nz < 0 then
+               put false into tIn
+               exit repeat
+            end if
+         end repeat
+         if tIn then put t into tBest
+      end repeat
+   end repeat
+   return tBest
+end NearestHit
 -- How many corners of object pKey can be seen: no face of any other closed object crosses the sight line
 -- from the camera (0,0,0 in camera space) to the corner. Uses the meshes' own face lists.
 function SeenCorners pKey

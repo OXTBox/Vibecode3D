@@ -6,6 +6,7 @@
 ## CONTROLS  0: everything shows through (the engine as it always was)
 ##           1: back faces hidden (each solid loses its own far side)
 ##           2: and whole objects hidden when they are wholly behind a solid
+##           3: and hidden lines: the part of any line behind a solid is cut away
 ##           Space: stop / start the camera    Left, Right: turn it by hand    Escape: pause
 ## RULES     nothing to win. Watch the top line: lines drawn this frame, objects hidden,
 ##           and the time the line work took. The floor grid is an open sheet: it is never
@@ -78,7 +79,7 @@ on Game.OnStart
    put 0 into sMSSum
    put 0 into sMSCount
    put "-" into sMSShown
-   put 2 into gCullMode
+   put 3 into gCullMode
    CullDemo.Camera
    CullDemo.ShowHUD
 end Game.OnStart
@@ -127,6 +128,10 @@ on Game.OnUpdate
          case 65458
             put 2 into gCullMode
             break
+         case 51
+         case 65459
+            put 3 into gCullMode
+            break
          case 32
             put not sTurning into sTurning
             break
@@ -161,8 +166,8 @@ on CullDemo.ShowHUD
       HUD.Set "CullDemo.Nums", "LINES" && sLinesShown, 20, 66, 12
       exit CullDemo.ShowHUD
    end if
-   put item gCullMode + 1 of "OFF  EVERYTHING SHOWS THROUGH,BACK FACES HIDDEN,BACK FACES AND WHOLE OBJECTS HIDDEN" into tWhat
+   put item gCullMode + 1 of "OFF  EVERYTHING SHOWS THROUGH,BACK FACES HIDDEN,BACK FACES AND WHOLE OBJECTS HIDDEN,HIDDEN LINES" into tWhat
    HUD.Set "CullDemo.Mode", "MODE" && gCullMode && " " && tWhat, 20, 40, 14
    HUD.Set "CullDemo.Nums", "LINES" && sLinesShown && "  HIDDEN OBJECTS" && sHiddenShown && "  LINE WORK" && sMSShown && "MS", 20, 66, 12
-   HUD.Set "CullDemo.Keys", "KEYS 0 1 2   SPACE STOPS THE CAMERA", 20, 88, 10
+   HUD.Set "CullDemo.Keys", "KEYS 0 1 2 3   SPACE STOPS THE CAMERA", 20, 88, 10
 end CullDemo.ShowHUD

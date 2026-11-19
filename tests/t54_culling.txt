@@ -1,4 +1,4 @@
--- Engine 1 (pure xTalk Vibecode3D): hiding with gCullMode. 1 = back faces of closed shapes, 2 = and whole objects behind a nearer solid (corner by corner). 0 (the default) draws as before.
+-- Engine 1 (pure xTalk Vibecode3D): hiding with gCullMode. 1 = back faces of closed shapes, 2 = and whole objects behind a nearer solid (corner by corner). 3 = and hidden lines. 0 (the default) draws as before.
 -- The engine script is read from the owner's Vibecode3D folder, or from $VIBE_ENGINE_SRC (to test a copy that is not put in yet).
 local tSrc, tPath, tKey, tBig, tSmall, tM, tV, i, tName, tA, tB
 global gCullMode, gMeshCache, gCameraYaw, gCameraPitch
@@ -218,6 +218,36 @@ repeat with i = 1 to 20
 end repeat
 get Entity.Spawn("T.Small", 400, 0, 600, "white")
 put ck("20 small boxes behind a wall and 1 beside it: 20 hidden, the wall's 4 and the 7 of the one beside", NHidden(2) && NLines(2), "20 11") & return after tLog
+
+-- 6. hidden lines (mode 3, 19 Nov): the part of a line behind a solid's face is cut away
+Fresh
+put Entity.Spawn("T.Small", 300, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Big", 0, 0, 400, "white") into tBig
+put MaxX(Pts(tBig, 1)) into tA
+put ck("small box half out from behind the big one, mode 1: some of its lines lie inside the big box's outline", MinX(Pts(tSmall, 1)) < tA - 5, true) & return after tLog
+put Pts(tSmall, 3) into tB
+put ck("mode 3: its lines end on the big box's outline (none inside it), and it still has lines", (MinX(tB) >= tA - 1) && (the number of lines of tB > 2), "true true") & return after tLog
+put ck("mode 3: the big box in front keeps its 4 lines whole", Pts(tBig, 3), Pts(tBig, 1)) & return after tLog
+SetObjectPosition tSmall, 80, 60, 700
+put ck("mode 3: small box wholly behind: only the big box's 4 lines", NLines(3) && NHidden(3), "4 1") & return after tLog
+SetObjectPosition tSmall, 0, 0, 200
+put ck("mode 3: small box in front, not over any line of the big one: 4 + 4 as in mode 1", NLines(3), NLines(1)) & return after tLog
+SetObjectPosition tSmall, 64, 0, 150
+put ck("mode 3: small box in front of the big one's right edge: that edge is cut in two (mode 1: 11 lines, mode 3: 12)", NLines(1) && NLines(3), "11 12") & return after tLog
+put ck("mode 3: the small box in front is drawn whole", Pts(tSmall, 3), Pts(tSmall, 1)) & return after tLog
+-- an open sheet is cut by a solid, and cuts nothing
+Fresh
+Mesh.Define "T.Floor", MeshGrid(4,4,100)
+put Entity.Spawn("T.Floor", 0, 60, 500, "white") into tSmall
+put Entity.Spawn("T.Big", 0, -91, 500, "white") into tBig
+put ck("a floor grid under a big box: the box hides part of the floor (fewer floor points inside the box's outline), the floor hides nothing of the box", (the number of lines of Pts(tSmall, 3) is not the number of lines of Pts(tSmall, 1)) && (Pts(tBig, 3) is Pts(tBig, 1)), "true true") & return after tLog
+-- an L-shaped solid hides its own far lines
+Fresh
+put Entity.Spawn("T.Ell", -20, -25, 300, "white") into tKey
+SetObjectRotation tKey, 0.5, 0.9, 0
+put ck("the L-shaped solid, turned: mode 3 cuts some of its own lines behind its own arm, and draws something", (NLines(3) > 0) && (Pts(tKey, 3) is not Pts(tKey, 1)), "true true") & return after tLog
+-- mode 0 is untouched by all this
+put ck("mode 0 after mode 3: 18 edges again", NLines(0), 18) & return after tLog
 init.globals
 put ck("init.globals (every game start) turns hiding off again", gCullMode, 0) & return after tLog
 return tLog
@@ -316,3 +346,33 @@ command gCameraTurn pYaw
    global gCameraYaw
    put pYaw into gCameraYaw
 end gCameraTurn
+-- one object's screen points with gCullMode = pMode, one "x,y" per line (two lines a segment)
+function Pts pKey, pMode
+   global gCullMode, gSceneObjects
+   local tLineO, tGeo, tBuf, tOut, tL
+   repeat for each line tLineO in gSceneObjects
+      if word 2 of tLineO is pKey then put word 1 of tLineO into tGeo
+   end repeat
+   put pMode into gCullMode
+   Render.BeginFrame
+   RenderMeshInto tGeo, pKey, "g", tBuf, true
+   put 0 into gCullMode
+   repeat for each line tL in tBuf["g"]
+      if tL is not empty then put tL & return after tOut
+   end repeat
+   return tOut
+end Pts
+function MinX pPts
+   local tL, tM
+   repeat for each line tL in pPts
+      if tM is empty or item 1 of tL < tM then put item 1 of tL into tM
+   end repeat
+   return tM
+end MinX
+function MaxX pPts
+   local tL, tM
+   repeat for each line tL in pPts
+      if tM is empty or item 1 of tL > tM then put item 1 of tL into tM
+   end repeat
+   return tM
+end MaxX
