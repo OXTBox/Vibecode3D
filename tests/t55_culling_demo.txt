@@ -1,0 +1,63 @@
+-- Engine 1 (pure xTalk Vibecode3D): the hiding demo card (Vibecode3D/examples/Vibecode3D_Play_CullingDemo) on the real engine script:
+-- it compiles, starts in mode 2, keys 0 1 2 switch gCullMode, and each mode draws fewer lines than the one before.
+-- Engine and demo are read from the owner's Vibecode3D folder, or from $VIBE_ENGINE_SRC and $VIBE_DEMO (a copy not put in yet).
+local tSrc, tPath, tDemo, tC, m, i, tLines, tHid, tXf
+global gCullMode, gSceneObjects
+put "/home/igame3d/projects/Vibecode3D/livecode/VIBECODE3D_LIB_MCP_11_11_2026_647PM.livecodescript" into tPath
+if $VIBE_ENGINE_SRC is not empty then put $VIBE_ENGINE_SRC into tPath
+put "/home/igame3d/projects/Vibecode3D/examples/Vibecode3D_Play_CullingDemo.livecodescript" into tDemo
+if $VIBE_DEMO is not empty then put $VIBE_DEMO into tDemo
+put textDecode(url ("binfile:" & tPath), "UTF-8") into tSrc
+if "Cull.PrepareFrame" is not in tSrc or there is not a file tDemo then
+   return "INFO skipped: no gCullMode in the engine at " & tPath & ", or no demo at " & tDemo & " (the occlusion-culling work is not put in)"
+end if
+create stack "EngHost"
+set the rect of stack "EngHost" to 100,100,1000,700
+-- T.Loop: the HUD is only drawn while the game loop runs
+set the script of stack "EngHost" to tSrc & return & "on T.Loop" & return & "put true into sLoopActive" & return & "end T.Loop" & return
+put ck("engine compiles", the result, empty) & return after tLog
+start using stack "EngHost"
+set the defaultStack to "EngHost"
+init.globals
+init.locals
+Engine.Init
+View.Init
+VectorText.Init
+T.Loop
+set the script of card 1 of stack "EngHost" to textDecode(url ("binfile:" & tDemo), "UTF-8")
+put ck("demo compiles", the result, empty) & return after tLog
+put the long id of card 1 of stack "EngHost" into tC
+dispatch "CullDemo.TestKeys" to tC with "0"
+dispatch "Game.OnStart" to tC
+put ck("demo starts in mode 2", gCullMode, 2) & return after tLog
+put ck("36 objects: floor, tower, 10 round it, wall, 5 behind it, 18 rocks", the number of lines of gSceneObjects, 36) & return after tLog
+Render.BeginFrame
+put Xform.Object(word 2 of line 2 of gSceneObjects) into tXf
+put ck("the camera looks at the tower (in the middle, ahead)", abs(item 10 of tXf) < 1 and item 12 of tXf > 500, true) & return after tLog
+repeat for each item m in "0,1,2"
+   dispatch "CullDemo.TestKeys" to tC with (48 + m)
+   dispatch "Game.OnUpdate" to tC
+   dispatch "CullDemo.TestKeys" to tC with "0"
+   put ck("key" && m && "sets mode" && m, gCullMode, m) & return after tLog
+   put 0 into tLines[m]
+   put 0 into tHid[m]
+   repeat with i = 1 to 120
+      game.update
+      game.render
+      add Engine.Info("edges") to tLines[m]
+      add Engine.Info("hidden") to tHid[m]
+   end repeat
+   put "INFO mode" && m & ": lines a frame" && round(tLines[m] / 120) & ", hidden objects a frame" && round(tHid[m] / 120, 1) & return after tLog
+   put "INFO   " & value("CullDemo.State()", tC) & return after tLog
+end repeat
+put ck("mode 1 draws fewer lines than mode 0", tLines[1] < tLines[0], true) & return after tLog
+put ck("mode 2 draws fewer lines than mode 1", tLines[2] < tLines[1], true) & return after tLog
+put ck("only mode 2 hides whole objects", (tHid[0] + tHid[1]) & (tHid[2] > 0), "0true") & return after tLog
+dispatch "CullDemo.TestKeys" to tC with "32"
+dispatch "Game.OnUpdate" to tC
+put word 4 of value("CullDemo.State()", tC) into tXf
+dispatch "Game.OnUpdate" to tC
+put ck("Space stops the camera", word 4 of value("CullDemo.State()", tC), tXf) & return after tLog
+dispatch "Game.OnStop" to tC
+put ck("leaving the demo turns hiding off", gCullMode, 0) & return after tLog
+return tLog
