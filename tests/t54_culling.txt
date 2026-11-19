@@ -1,0 +1,378 @@
+-- Engine 1 (pure xTalk Vibecode3D): hiding with gCullMode. 1 = back faces of closed shapes, 2 = and whole objects behind a nearer solid (corner by corner). 3 = and hidden lines. 0 (the default) draws as before.
+-- The engine script is read from the owner's Vibecode3D folder, or from $VIBE_ENGINE_SRC (to test a copy that is not put in yet).
+local tSrc, tPath, tKey, tBig, tSmall, tM, tV, i, tName, tA, tB
+global gCullMode, gMeshCache, gCameraYaw, gCameraPitch
+put "/home/igame3d/projects/Vibecode3D/livecode/VIBECODE3D_LIB_MCP_11_11_2026_647PM.livecodescript" into tPath
+if $VIBE_ENGINE_SRC is not empty then put $VIBE_ENGINE_SRC into tPath
+put textDecode(url ("binfile:" & tPath), "UTF-8") into tSrc
+if "Cull.PrepareFrame" is not in tSrc then
+   return "INFO skipped: the engine at " & tPath & " has no gCullMode yet (the occlusion-culling work is not put in)"
+end if
+create stack "EngHost"
+set the rect of stack "EngHost" to 100,100,900,700
+set the script of stack "EngHost" to tSrc
+put ck("engine script compiles", the result, empty) & return after tLog
+start using stack "EngHost"
+set the defaultStack to "EngHost"
+init.globals
+init.locals
+Engine.Init
+View.Init
+put ck("hiding is off after init.globals", gCullMode, 0) & return after tLog
+
+-- 1. mode 0 draws exactly what the engine drew before (line count and md5 of every point, from the engine of 16 Nov, commit 5c4a430)
+BuildScene 1
+put ck("mode 0, scene 1 (12 turned solids): as before", word 1 of Frame(0) && word -1 of Frame(0), "210 d4cb834cb1b926f89fcb14af590b747b") & return after tLog
+put "INFO scene 1 lines, modes 0 / 1 / 2: " & NLines(0) && "/" && NLines(1) && "/" && NLines(2) && "(hidden objects" && NHidden(2) & ")" & return after tLog
+BuildScene 2
+put ck("mode 0, scene 2 (floor grid, a box across the near plane, turned camera): as before", word 1 of Frame(0) && word -1 of Frame(0), "176 3f2af554fe4b5a82f0827c1583cf98b6") & return after tLog
+put "INFO scene 2 lines, modes 0 / 1 / 2: " & NLines(0) && "/" && NLines(1) && "/" && NLines(2) && "(hidden objects" && NHidden(2) & ")" & return after tLog
+BuildScene 3
+put ck("mode 0, scene 3 (30 objects in a ring): as before", word 1 of Frame(0) && word -1 of Frame(0), "673 b4a578c958dcc85bc7683d3e6ee0c838") & return after tLog
+put "INFO scene 3 lines, modes 0 / 1 / 2: " & NLines(0) && "/" && NLines(1) && "/" && NLines(2) && "(hidden objects" && NHidden(2) & ")" & return after tLog
+
+-- 2. back faces: one box
+Fresh
+Mesh.Define "T.Box", MeshBox(100,100,100)
+put Entity.Spawn("T.Box", 0, 0, 400, "white") into tKey
+put ck("box square-on, mode 0: all 12 edges", NLines(0), 12) & return after tLog
+put ck("box square-on, mode 1: the front square only, 4 edges", NLines(1), 4) & return after tLog
+put ck("box square-on, mode 2: 4 too", NLines(2), 4) & return after tLog
+SetObjectRotation tKey, 0.5, 0.6, 0
+put ck("box corner leading, mode 1: 9 edges", NLines(1), 9) & return after tLog
+put ck("box corner leading, mode 0: 12", NLines(0), 12) & return after tLog
+put ck("a box is closed", gMeshCache["T.Box"]["closed"], true) & return after tLog
+get RenderMeshPoints("T.Box", tKey)
+put 1 into gCullMode
+put ck("RenderMeshPoints (derez, single draws) is never culled: 12 segments", the number of lines of RenderMeshPoints("T.Box", tKey) div 4, 12) & return after tLog
+
+-- 3. the side that faces out is found from the shape itself, whichever way its faces are wound
+Fresh
+Mesh.Define "T.InOut", InsideOutBox(100,100,100)
+put Entity.Spawn("T.InOut", 0, 0, 400, "white") into tKey
+put ck("inside-out box (every face wound backwards), mode 1: still the front 4", NLines(1), 4) & return after tLog
+put ck("inside-out box: normals point out", NormalsOut("T.InOut"), true) & return after tLog
+Fresh
+Mesh.Define "T.Mirror", Mesh.Transform(MeshBox(100,100,100), 0, 0, 0, 0, 0, 0, -1)
+put Entity.Spawn("T.Mirror", 0, 0, 400, "white") into tKey
+put ck("box through Mesh.Transform with scale -1, mode 1: the front 4", NLines(1), 4) & return after tLog
+-- a pyramid shows which side is which: from under its base 5 edges, from above its point all 10
+Fresh
+Mesh.Define "T.Pyr", MeshPyramid(5,30,50)
+put Entity.Spawn("T.Pyr", 0, 0, 300, "white") into tKey
+repeat for each item tA in "1.5708,-1.5708"
+   SetObjectRotation tKey, tA, 0, 0
+   Render.BeginFrame
+   -- where the point (local 0,-25,0) is: nearer than the middle (z 300) = seen from above its point
+   if 300 - 25 * item 8 of Xform.Object(tKey) < 300 then
+      put ck("pyramid seen from above its point, mode 1: all 10 edges (5 sides face the camera)", NLines(0) && NLines(1), "10 10") & return after tLog
+      put "point" & space after tB
+   else
+      put ck("pyramid seen from under its base, mode 1: the base's 5 edges", NLines(0) && NLines(1), "10 5") & return after tLog
+      put "base" & space after tB
+   end if
+end repeat
+put ck("the pyramid was seen from both ends", the number of words of tB & ("point" is in tB) & ("base" is in tB), "2truetrue") & return after tLog
+-- every maker gives a closed shape with its normals pointing out
+Mesh.Define "T.Prism", MeshPrism(6,25,70)
+Mesh.Define "T.Sphere", MeshSphere(40,3,6)
+Mesh.Define "T.Lathe", MeshLathe("0,-30|6,-18|14,0|10,12|0,12", 6)
+Mesh.Define "T.Loft", MeshLoft("20,20|20,-20|-20,-20|-20,20", -10, "10,10|10,-10|-10,-10|-10,10", 10)
+Mesh.Define "T.Extrude", MeshExtrude("-20,-10|20,-10|20,10|-20,10", 20)
+repeat for each item tName in "T.Box,T.Pyr,T.Prism,T.Sphere,T.Lathe,T.Loft,T.Extrude"
+   put ck(tName & ": closed, normals out", NormalsOut(tName) && gMeshCache[tName]["closed"], "true true") & return after tLog
+end repeat
+-- a concave solid (an L, extruded) is closed too; its far side goes
+Fresh
+Mesh.Define "T.Ell", MeshExtrude("0,0|40,0|40,15|15,15|15,50|0,50", 20)
+put Entity.Spawn("T.Ell", -20, -25, 300, "white") into tKey
+put ck("L-shaped solid is closed", gMeshCache["T.Ell"]["closed"] is not false and NLines(1) > 0, true) & return after tLog
+put ck("L-shaped solid from the front, mode 1: its front outline (6) and the two faces inside the corner (5 more), 11 of 18 edges", NLines(0) && NLines(1), "18 11") & return after tLog
+
+-- 4. open shapes, wire lines and the old hand-made edge lists are never culled
+Fresh
+put Mesh.New() into tM
+Mesh.AddVertex tM, -50, -50, 0
+Mesh.AddVertex tM, 50, -50, 0
+Mesh.AddVertex tM, 50, 50, 0
+Mesh.AddVertex tM, -50, 50, 0
+Mesh.AddFace tM, "1 2 3 4"
+Mesh.Define "T.Face", tM
+put Entity.Spawn("T.Face", 0, 0, 400, "white") into tKey
+put ck("a single face, from the front: 4 edges in modes 0 1 2", NLines(0) && NLines(1) && NLines(2), "4 4 4") & return after tLog
+SetObjectRotation tKey, 0, 3.14159, 0
+put ck("a single face, from behind: 4 edges in modes 0 1 2", NLines(0) && NLines(1) && NLines(2), "4 4 4") & return after tLog
+put ck("a single face is not closed", gMeshCache["T.Face"]["closed"] & gMeshCache["T.Face"]["cull"], "falsefalse") & return after tLog
+Fresh
+Mesh.Define "T.Grid", MeshGrid(4,4,50)
+put Entity.Spawn("T.Grid", 0, 80, 400, "white") into tKey
+put ck("a grid floor from above: the same in modes 0 1 2", NLines(1) && NLines(2), NLines(0) && NLines(0)) & return after tLog
+SetObjectPosition tKey, 0, -80, 400
+put ck("a grid floor from below: the same in modes 0 1 2", NLines(1) && NLines(2), NLines(0) && NLines(0)) & return after tLog
+put ck("the grid has its 40 edges", NLines(0), 40) & return after tLog
+-- a box with a mast (Mesh.AddLine): the mast always draws
+Fresh
+put MeshBox(100,100,100) into tM
+Mesh.AddVertex tM, 0, -50, 50
+Mesh.AddVertex tM, 0, -120, 50
+Mesh.AddLine tM, 9, 10
+Mesh.Define "T.Mast", tM
+put Entity.Spawn("T.Mast", 0, 0, 400, "white") into tKey
+put ck("box with a mast on its far top edge, mode 1: front 4 + the mast", NLines(0) && NLines(1), "13 5") & return after tLog
+-- the old stack meshes: a hand-made edge list (edgesFromFaces false) draws whole
+Fresh
+put MeshBox(100,100,100) into tM
+put false into tM["edgesFromFaces"]
+put "1 2" & return & "2 3" & return & "3 4" & return & "4 1" & return & "5 6" & return & "6 7" & return & "7 8" & return & "8 5" & return & "1 5" & return & "2 6" & return & "3 7" & return & "4 8" into tM["lines"]
+Mesh.Define "T.Old", tM
+put Entity.Spawn("T.Old", 0, 0, 400, "white") into tKey
+put ck("hand-made edge list (old stack meshes): 12 in modes 0 1 2", NLines(0) && NLines(1) && NLines(2), "12 12 12") & return after tLog
+-- a solid and an open sheet in one mesh: the solid part is culled, the sheet is not, and the mesh hides nothing
+Fresh
+Mesh.Define "T.Mixed", Mesh.Merge(MeshBox(100,100,100), Mesh.Transform(gMeshCache["T.Face"], 0, 0, 0, 200, 0, 0, 1))
+put Entity.Spawn("T.Mixed", -100, 0, 400, "white") into tKey
+put ck("box + loose face in one mesh, mode 1: 12 + 4 becomes 7 + 4 (the box part shows its front and right side)", NLines(0) && NLines(1), "16 11") & return after tLog
+put ck("box + loose face: not closed, so it cannot hide objects", gMeshCache["T.Mixed"]["closed"] && gMeshCache["T.Mixed"]["ofCount"], "false 0") & return after tLog
+-- two solids in one mesh, one of them wound inside out: each part is put right by itself
+Fresh
+Mesh.Define "T.Two", Mesh.Merge(MeshBox(100,100,100), Mesh.Transform(InsideOutBox(100,100,100), 0, 0, 0, 0, -200, 0, 1))
+put Entity.Spawn("T.Two", 0, 100, 600, "white") into tKey
+put ck("two boxes in one mesh (one inside out): 24 edges, closed", NLines(1) > 0 and NLines(0) is 24 and gMeshCache["T.Two"]["closed"], true) & return after tLog
+put ck("two boxes in one mesh, mode 1: 7 + 7 (front square and the side toward the middle)", NLines(1), 14) & return after tLog
+-- the camera inside a closed box (a room): no face looks at it from outside, so the room draws whole
+Fresh
+Mesh.Define "T.Room", MeshBox(1000,1000,1000)
+put Entity.Spawn("T.Room", 0, 0, 0, "white") into tKey
+put ck("camera inside a closed box: drawn as in mode 0", NLines(1) && NLines(2), NLines(0) && NLines(0)) & return after tLog
+put ck("camera inside a closed box: something is drawn", NLines(0) > 0, true) & return after tLog
+-- a solid with one corner pulled out: its three twisted faces are not flat, so their edges always draw
+Fresh
+put MeshBox(100,100,100) into tM
+put -90 into tM["vx"][1]
+put -90 into tM["vy"][1]
+put -90 into tM["vz"][1]
+Mesh.Define "T.Bent", tM
+put Entity.Spawn("T.Bent", 0, 0, 400, "white") into tKey
+SetObjectRotation tKey, 0, 3.14159, 0
+put ck("bent box, the bent corner at the back: its 9 twisted-face edges stay with the front 4 (two shared), 11 of 12", NLines(1), 11) & return after tLog
+
+-- 5. whole objects (mode 2)
+Fresh
+Mesh.Define "T.Big", MeshBox(300,300,100)
+Mesh.Define "T.Small", MeshBox(40,40,40)
+put Entity.Spawn("T.Small", 0, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Big", 0, 0, 400, "white") into tBig
+put ck("small box behind a big box, mode 0: 12 + 12", NLines(0), 24) & return after tLog
+put ck("mode 1: 4 + 4 (the small one still shows through)", NLines(1) && NHidden(1), "8 0") & return after tLog
+put ck("mode 2: the small box draws nothing, 4 lines, 1 object hidden", NLines(2) && NHidden(2), "4 1") & return after tLog
+put 2 into gCullMode
+Render.BeginFrame
+put empty into tA
+RenderMeshInto "T.Small", tSmall, "g", tA, true
+put ck("mode 2: the hidden box adds no points", tA["g"], empty) & return after tLog
+SetObjectPosition tSmall, 300, 0, 700
+put ck("small box half out from behind: drawn, its front and one side (step 3 would cut its lines)", NLines(2) && NHidden(2), "11 0") & return after tLog
+SetObjectPosition tSmall, 80, 60, 700
+put ck("small box off-centre but still wholly behind: hidden", NHidden(2), 1) & return after tLog
+SetObjectPosition tSmall, 0, 0, 200
+put ck("small box in FRONT of the big one: drawn", NLines(2) && NHidden(2), "8 0") & return after tLog
+SetObjectPosition tSmall, 0, 0, 340
+put ck("small box poking out through the big one's front face: drawn (when unsure, draw)", NHidden(2), 0) & return after tLog
+SetObjectPosition tSmall, 0, 0, 400
+put ck("small box INSIDE the big solid: hidden", NHidden(2), 1) & return after tLog
+SetObjectPosition tSmall, 0, 0, 700
+SetObjectRotation tBig, 0, 0.5, 0
+put ck("big box turned, small one still behind its front face: hidden", NHidden(2), 1) & return after tLog
+SetObjectRotation tBig, 0, 0, 0
+gCameraTurn 0.2
+put ck("camera turned a little, small box still behind: hidden", NHidden(2), 1) & return after tLog
+-- corner by corner (19 Nov): behind a convex solid the corners may be behind different faces of it
+SetObjectRotation tBig, 0, 0.7854, 0
+put ck("big box turned corner-on, small box behind that corner (two faces of the big one): hidden", NHidden(2), 1) & return after tLog
+SetObjectPosition tSmall, 330, 0, 700
+put ck("small box half out past the corner-on box's outline: drawn", NHidden(2), 0) & return after tLog
+SetObjectRotation tBig, 0, 0, 0
+Fresh
+Mesh.Define "T.Stick", MeshBox(10,200,10)
+put Entity.Spawn("T.Stick", 230, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Big", 0, 0, 400, "white") into tBig
+put ck("a long thin stick near the big box's edge (its ball pokes out, its corners do not): hidden", NHidden(2), 1) & return after tLog
+SetObjectPosition tSmall, 230, 220, 700
+put ck("the stick lowered so its end shows under the big box: drawn", NHidden(2), 0) & return after tLog
+put ck("a box is one convex solid, the L-shaped solid is not", gMeshCache["T.Big"]["convex"] && gMeshCache["T.Ell"]["convex"], "true false") & return after tLog
+-- an open sheet hides nothing, but can be hidden
+Fresh
+Mesh.Define "T.Wall", Mesh.Transform(gMeshCache["T.Face"], 0, 0, 0, 0, 0, 0, 4)
+put Entity.Spawn("T.Small", 0, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Wall", 0, 0, 400, "white") into tBig
+put ck("small box behind an open sheet (a single face): drawn, 4 + 4", NLines(2) && NHidden(2), "8 0") & return after tLog
+Fresh
+put Entity.Spawn("T.Face", 0, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Big", 0, 0, 400, "white") into tBig
+put ck("an open sheet behind a solid box: hidden in mode 2 only", NLines(1) && NLines(2) && NHidden(2), "8 4 1") & return after tLog
+-- many objects behind one wall
+Fresh
+put Entity.Spawn("T.Big", 0, 0, 300, "white") into tBig
+repeat with i = 1 to 20
+   get Entity.Spawn("T.Small", ((i mod 5) - 2) * 30, ((i div 5) - 2) * 30, 600 + i * 20, "white")
+end repeat
+get Entity.Spawn("T.Small", 400, 0, 600, "white")
+put ck("20 small boxes behind a wall and 1 beside it: 20 hidden, the wall's 4 and the 7 of the one beside", NHidden(2) && NLines(2), "20 11") & return after tLog
+
+-- 6. hidden lines (mode 3, 19 Nov): the part of a line behind a solid's face is cut away
+Fresh
+put Entity.Spawn("T.Small", 300, 0, 700, "white") into tSmall
+put Entity.Spawn("T.Big", 0, 0, 400, "white") into tBig
+put MaxX(Pts(tBig, 1)) into tA
+put ck("small box half out from behind the big one, mode 1: some of its lines lie inside the big box's outline", MinX(Pts(tSmall, 1)) < tA - 5, true) & return after tLog
+put Pts(tSmall, 3) into tB
+put ck("mode 3: its lines end on the big box's outline (none inside it), and it still has lines", (MinX(tB) >= tA - 1) && (the number of lines of tB > 2), "true true") & return after tLog
+put ck("mode 3: the big box in front keeps its 4 lines whole", Pts(tBig, 3), Pts(tBig, 1)) & return after tLog
+SetObjectPosition tSmall, 80, 60, 700
+put ck("mode 3: small box wholly behind: only the big box's 4 lines", NLines(3) && NHidden(3), "4 1") & return after tLog
+SetObjectPosition tSmall, 0, 0, 200
+put ck("mode 3: small box in front, not over any line of the big one: 4 + 4 as in mode 1", NLines(3), NLines(1)) & return after tLog
+SetObjectPosition tSmall, 64, 0, 150
+put ck("mode 3: small box in front of the big one's right edge: that edge is cut in two (mode 1: 11 lines, mode 3: 12)", NLines(1) && NLines(3), "11 12") & return after tLog
+put ck("mode 3: the small box in front is drawn whole", Pts(tSmall, 3), Pts(tSmall, 1)) & return after tLog
+-- an open sheet is cut by a solid, and cuts nothing
+Fresh
+Mesh.Define "T.Floor", MeshGrid(4,4,100)
+put Entity.Spawn("T.Floor", 0, 60, 500, "white") into tSmall
+put Entity.Spawn("T.Big", 0, -91, 500, "white") into tBig
+put ck("a floor grid under a big box: the box hides part of the floor (fewer floor points inside the box's outline), the floor hides nothing of the box", (the number of lines of Pts(tSmall, 3) is not the number of lines of Pts(tSmall, 1)) && (Pts(tBig, 3) is Pts(tBig, 1)), "true true") & return after tLog
+-- an L-shaped solid hides its own far lines
+Fresh
+put Entity.Spawn("T.Ell", -20, -25, 300, "white") into tKey
+SetObjectRotation tKey, 0.5, 0.9, 0
+put ck("the L-shaped solid, turned: mode 3 cuts some of its own lines behind its own arm, and draws something", (NLines(3) > 0) && (Pts(tKey, 3) is not Pts(tKey, 1)), "true true") & return after tLog
+-- mode 0 is untouched by all this
+put ck("mode 0 after mode 3: 18 edges again", NLines(0), 18) & return after tLog
+init.globals
+put ck("init.globals (every game start) turns hiding off again", gCullMode, 0) & return after tLog
+return tLog
+--HANDLERS--
+-- one frame of every scene object with gCullMode = pMode: "lines hidden md5-of-the-points"
+function Frame pMode
+   global gCullMode, gSceneObjects
+   local tBuf, tEntry, tHex
+   put pMode into gCullMode
+   Render.BeginFrame
+   repeat for each line tEntry in gSceneObjects
+      RenderMeshInto word 1 of tEntry, word 2 of tEntry, "g", tBuf, true
+   end repeat
+   get binaryDecode("H*", md5Digest(tBuf["g"]), tHex)
+   return Engine.Info("edges") && Engine.Info("hidden") && tHex
+end Frame
+function NLines pMode
+   return word 1 of Frame(pMode)
+end NLines
+function NHidden pMode
+   return word 2 of Frame(pMode)
+end NHidden
+-- an empty scene, the camera at 0,0,0 looking along +z, not turned
+command Fresh
+   global gCameraYaw, gCameraPitch
+   Scene.ClearAll
+   Engine.ResetCamera
+   put 0 into gCameraYaw
+   put 0 into gCameraPitch
+end Fresh
+-- true when every tested face's plane has the mesh's middle (0,0,0) on its inner side: normals point out
+function NormalsOut pName
+   global gMeshCache
+   local c
+   if gMeshCache[pName]["cullBuilt"] is not true then Mesh.CullBuild pName
+   if gMeshCache[pName]["cfCount"] < 1 then return "no faces"
+   repeat with c = 1 to gMeshCache[pName]["cfCount"]
+      if gMeshCache[pName]["cd"][c] <= 0 then return false
+   end repeat
+   return true
+end NormalsOut
+-- the box with every face wound the other way round
+function InsideOutBox pW, pH, pD
+   local tM, tFace, tNew, tOut, i
+   put MeshBox(pW, pH, pD) into tM
+   repeat for each line tFace in tM["faces"]
+      put empty into tNew
+      repeat with i = the number of words of tFace down to 1
+         put word i of tFace & space after tNew
+      end repeat
+      put word 1 to -1 of tNew & return after tOut
+   end repeat
+   put line 1 to -1 of tOut into tM["faces"]
+   return tM
+end InsideOutBox
+-- scenes for "mode 0 draws what the engine drew before this work" (numbers taken from the engine of 16 Nov)
+command BuildScene pWhich
+   global gCameraYaw, gCameraPitch
+   local i, tKey
+   Fresh
+   Mesh.Define "S.Box", MeshBox(80,60,40)
+   Mesh.Define "S.Pyr", MeshPyramid(5,30,50)
+   Mesh.Define "S.Sph", MeshSphere(40,3,6)
+   Mesh.Define "S.Pri", MeshPrism(6,25,70)
+   Mesh.Define "S.Grid", MeshGrid(8,8,50)
+   Mesh.Define "S.Buoy", MeshLathe("0,-30|6,-18|14,0|10,12|0,12", 6)
+   Mesh.Define "S.Hull", MeshLoft("0,60|20,25|20,-50|-20,-50|-20,25", -10, "0,30|10,12|10,-25|-10,-25|-10,12", 10)
+   Mesh.Define "S.Ell", MeshExtrude("0,0|40,0|40,15|15,15|15,50|0,50", 20)
+   switch pWhich
+      case 1
+         repeat with i = 1 to 12
+            put Entity.Spawn(item (i mod 4) + 1 of "S.Box,S.Pyr,S.Sph,S.Pri", (i - 6) * 45, ((i * 37) mod 90) - 45, 300 + ((i * 53) mod 400), "white") into tKey
+            SetObjectRotation tKey, i * 0.3, i * 0.7, i * 0.11
+         end repeat
+         break
+      case 2
+         get Entity.Spawn("S.Grid", 0, 60, 300, "green")
+         get Entity.Spawn("S.Buoy", 40, 30, 200, "white")
+         get Entity.Spawn("S.Box", 0, 0, 20, "white")
+         get Entity.Spawn("S.Box", 300, 0, 100, "white")
+         Engine.SetCam 30, -20, -50
+         put 0.3 into gCameraYaw
+         put -0.15 into gCameraPitch
+         break
+      case 3
+         repeat with i = 1 to 30
+            put Entity.Spawn(item (i mod 6) + 1 of "S.Box,S.Hull,S.Ell,S.Sph,S.Pri,S.Buoy", 260 * sin(i * 0.7), 40 * cos(i * 1.3), 500 + 260 * cos(i * 0.7), "white") into tKey
+            SetObjectRotation tKey, i * 0.21, i * 0.4, i * 0.05
+         end repeat
+         Engine.SetCam 0, -60, -100
+         put -0.1 into gCameraPitch
+         break
+   end switch
+end BuildScene
+command gCameraTurn pYaw
+   global gCameraYaw
+   put pYaw into gCameraYaw
+end gCameraTurn
+-- one object's screen points with gCullMode = pMode, one "x,y" per line (two lines a segment)
+function Pts pKey, pMode
+   global gCullMode, gSceneObjects
+   local tLineO, tGeo, tBuf, tOut, tL
+   repeat for each line tLineO in gSceneObjects
+      if word 2 of tLineO is pKey then put word 1 of tLineO into tGeo
+   end repeat
+   put pMode into gCullMode
+   Render.BeginFrame
+   RenderMeshInto tGeo, pKey, "g", tBuf, true
+   put 0 into gCullMode
+   repeat for each line tL in tBuf["g"]
+      if tL is not empty then put tL & return after tOut
+   end repeat
+   return tOut
+end Pts
+function MinX pPts
+   local tL, tM
+   repeat for each line tL in pPts
+      if tM is empty or item 1 of tL < tM then put item 1 of tL into tM
+   end repeat
+   return tM
+end MinX
+function MaxX pPts
+   local tL, tM
+   repeat for each line tL in pPts
+      if tM is empty or item 1 of tL > tM then put item 1 of tL into tM
+   end repeat
+   return tM
+end MaxX

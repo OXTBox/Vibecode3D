@@ -1,0 +1,46 @@
+-- Engine 1 (pure xTalk Vibecode3D), the GUI stack: Settings (the Options group) has fake tabs GENERAL / HIDING
+-- (graphics drawn as tabs). Opens the stack with messages locked, makes the Options group on the Developer card,
+-- switches tabs, picks a hiding mode, applies it. $GUI_FILE tests another copy of the stack.
+local tF, tS, tG
+global gCullMode, gCullDefault
+put "/home/igame3d/projects/Vibecode3D/VIBECODE3D_GUI_v1_LIB_LLM_11152026.livecode" into tF
+if $GUI_FILE is not empty then put $GUI_FILE into tF
+lock messages
+open invisible stack tF
+put the short name of stack tF into tS
+set the defaultStack to tS
+if there is not a group "HidingPageGroup" of group "TemplateOptions" of card "Edit_Options" of stack tS then return "INFO skipped: the Settings group at " & tF & " has no HIDING tab yet"
+put ck("stack script compiles (has the switches)", ("Cull.SetDefault" is in the script of stack tS), true) & return after tLog
+send "init.globals" to stack tS
+put ck("hiding off after init", gCullMode & "/" & gCullDefault, "0/0") & return after tLog
+go card "Developer" of stack tS
+send "OptionsGroupSetUp" to stack tS
+put ck("Options group made on the card", there is a group "OptionsGroup", true) & return after tLog
+put the long id of group "OptionsGroup" into tG
+put ck("General page shows", the visible of group "ScreenSizeGroup" of tG, true) & return after tLog
+put ck("Hiding page hidden", the visible of group "HidingPageGroup" of tG, false) & return after tLog
+put ck("General tab open look", the backColor of graphic "OptionsTabGeneral" of tG, "128,255,128") & return after tLog
+put ck("box Off ticked", the hilite of button "CullToggle0" of tG, true) & return after tLog
+send "Options.ShowTab Hiding," & tG to stack tS
+put ck("tab Hiding: page shows", the visible of group "HidingPageGroup" of tG, true) & return after tLog
+put ck("tab Hiding: general hidden", the visible of group "AntiAliasGroup" of tG && the visible of group "MusicVolumeGroup" of tG, "false false") & return after tLog
+put ck("tab Hiding: tabs swap look", the backColor of graphic "OptionsTabHiding" of tG && the backColor of graphic "OptionsTabGeneral" of tG, "128,255,128 0,40,0") & return after tLog
+put ck("Apply stays", the visible of button "ApplyOptions" of tG, true) & return after tLog
+send "Options.PickCull 3" to stack tS
+put ck("pick 3: one box", the hilite of button "CullToggle3" of tG && the hilite of button "CullToggle0" of tG, "true false") & return after tLog
+put ck("pick alone changes nothing yet", gCullMode, 0) & return after tLog
+try
+  send "OptionsApplied" to stack tS
+  put "INFO OptionsApplied ran" & return after tLog
+catch tErr
+  put "INFO OptionsApplied threw (window bits, no screen): " & line 1 of tErr & return after tLog
+end try
+put ck("Apply: mode and choice 3", gCullMode & "/" & gCullDefault, "3/3") & return after tLog
+send "Cull.SetMode 1" to stack tS
+send "OptionsGroupSetUp" to stack tS
+put ck("reopen shows the choice, General first", the hilite of button "CullToggle3" of tG && the visible of group "HidingPageGroup" of tG, "true false") & return after tLog
+send "Options.ShowTab General," & tG to stack tS
+put ck("tab General back", the visible of group "HidingPageGroup" of tG && the visible of group "UseEffectsGroup" of tG, "false true") & return after tLog
+put ck("Title card has no stale copy", there is a group "OptionsGroup" of card "Title" of stack tS, false) & return after tLog
+put ck("template keeps hiding page hidden", the visible of group "HidingPageGroup" of group "TemplateOptions" of card "Edit_Options" of stack tS, false) & return after tLog
+return tLog
