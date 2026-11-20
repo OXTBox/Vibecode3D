@@ -18,3 +18,7 @@ cards, LiveCode 9.6.3 pitfalls) are in `LiveCode_Claude_Kit/kit/CLAUDE.md`.
 
 Part of the family of separate libraries listed in `~/projects/LIB_MCP/README.md`.
 Repository started 2026-11-11 with the files as they were; nothing was moved or changed.
+
+## Licence
+
+GPL-3.0 (see `LICENSE`), because the xTalk work here is built on the GPL-licensed LiveCode Community 9 engine. Copyright (c) 2026 xAction.
